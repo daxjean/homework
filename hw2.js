@@ -17,12 +17,12 @@ try {
   // 2. 實作對話迴圈
   while (true) {
     const userQuestion = (
-      await input({ message: "\n請輸入你的問題（輸入 exit 結束）: " })
+      await input({ message: "\n請輸入你的問題 (輸入 exit 結束): " })
     ).trim();
 
     if (userQuestion === "") continue;
     if (userQuestion.toLowerCase() === "exit") {
-      console.log("多謝捧場！下次再來逛夜市、吃好料啦！👋");
+      console.log("多謝捧場!下次再來逛夜市、吃好料啦!");
       break;
     }
 
@@ -31,7 +31,7 @@ try {
 
     // 第一次呼叫 API：同時帶入對話歷史紀錄與工具定義
     let response = await client.chat.completions.create({
-      model: "gpt-5.6-luna", // 保持你課程所規定的模型名稱，或改用 gpt-4o
+      model: "gpt-4o", // 保持你課程所規定的模型名稱，或改用 gpt-4o
       messages: getMessages(),
       tools: getToolsDefinition(), // 註冊你的計算機工具
     });
@@ -40,7 +40,7 @@ try {
 
     // 檢查 AI 是否決定發動 Function Calling 工具
     if (assistantMessage.tool_calls) {
-      console.log("\n🤖 達人正在使用工具掐指一算...");
+      console.log("\n 達人正在使用工具掐指一算...");
       
       // 記錄助理發送的工具呼叫請求
       await addAssistantToolCallMessage(assistantMessage.tool_calls);
@@ -54,7 +54,7 @@ try {
 
         // 執行實作函數取得運算結果
         const toolResult = await handleToolCall(toolName, toolArgs);
-        console.log(`📊 [工具回傳]: ${toolResult}`);
+        console.log(`[工具回傳]: ${toolResult}`);
 
         // 將工具運算結果寫入歷史紀錄
         await addToolMessage(toolCall.id, toolResult);
@@ -62,7 +62,7 @@ try {
 
       // 第二次呼叫 API：把工具算的正確結果回傳給 AI，讓它用達人的口吻組織最終回答
       response = await client.chat.completions.create({
-        model: "gpt-5.6-luna",
+        model: "gpt-4o",
         messages: getMessages(),
       });
       
@@ -71,15 +71,16 @@ try {
 
     // 輸出最終 AI 解答
     const finalContent = assistantMessage.content;
-    console.log(`\n達人開講：\n${finalContent}\n`);
+    console.log(`\n達人開講:\n${finalContent}\n`);
     
     // 記錄 AI 的回應以維持記憶
     await addMessage(finalContent, "assistant");
   }
 } catch (err) {
   if (err.name === "ExitPromptError") {
-    console.log("\n多謝捧場！下次再來逛夜市、吃好料啦！👋");
+    console.log("\n多謝捧場!下次再來逛夜市、吃好料啦!");
   } else {
     throw err;
   }
 }
+
