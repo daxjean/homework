@@ -1,5 +1,5 @@
 import { getEmbedding } from "./utils/embeddings.js";
-import { insertKnowledge } from "./db/vectorDb.js";
+import { insertKnowledge } from "./db/vectorDB.js";
 
 // 準備 5 筆台灣城市介紹資料
 const taiwanCitiesData = [
