@@ -26,7 +26,7 @@ export async function initMessage(systemPrompt) {
 }
 
 export async function addMessage(content, role = "user") {
-  db.data.messages.push({ role, content });e
+  db.data.messages.push({ role, content });
   await db.write();
 }
 
