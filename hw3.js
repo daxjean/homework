@@ -1,6 +1,6 @@
 import { initializeDatabase } from "./initKnowledge.js";
 import { getEmbedding } from "./utils/embeddings.js";
-import { searchKnowledge } from "./db/vectorDb.js";
+import { searchKnowledge } from "./db/vectorDB.js";
 
 async function runSearchTest() {
   // 1. 初始化資料庫
