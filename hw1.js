@@ -28,7 +28,7 @@ try {
 
     // 呼叫 OpenAI API（修正為標準的 chat.completions 語法，模型使用常用的 gpt-4o 或 gpt-3.5-turbo）
     const response = await client.chat.completions.create({
-      model: "gpt-4o", 
+      model: "gpt-5.6-luna", 
       messages: getMessages(), // 取得包含 system prompt 與歷史紀錄的陣列
     });
 
