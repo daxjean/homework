@@ -1,7 +1,7 @@
 import { input } from "@inquirer/prompts";
 import OpenAI from "openai";
 import { OPENAI_API_KEY } from "./config.js";
-import { initMessage, addMessage, getMessages } from "./db/messages.js";
+import { initMessage, addMessage, getMessages } from "./messages.js";
 
 const client = new OpenAI({ apiKey: OPENAI_API_KEY });
 
@@ -14,12 +14,12 @@ try {
   // 2. 實作對話迴圈
   while (true) {
     const userQuestion = (
-      await input({ message: "請輸入你的問題（輸入 exit 結束）：" })
+      await input({ message: "請輸入你的問題（輸入 exit 結束）:" })
     ).trim();
 
     if (userQuestion === "") continue;
     if (userQuestion.toLowerCase() === "exit") {
-      console.log("多謝捧場！下次再來逛夜市、吃好料啦！👋");
+      console.log("多謝捧場!下次再來逛夜市、吃好料啦!");
       break;
     }
 
@@ -40,7 +40,7 @@ try {
   }
 } catch (err) {
   if (err.name === "ExitPromptError") {
-    console.log("\n多謝捧場！下次再來逛夜市、吃好料啦！👋");
+    console.log("\n多謝捧場!下次再來逛夜市、吃好料啦!");
   } else {
     throw err;
   }
