@@ -1,66 +1,73 @@
 import { input } from "@inquirer/prompts";
-import { getEmbedding, cosineSimilarity } from "./utils/embeddings.js";
+import OpenAI from "openai";
+import { OPENAI_API_KEY } from "./config.js";
+import { initializeDatabase } from "./initKnowledge.js";
+import { getEmbedding } from "./utils/embeddings.js";
+import { searchKnowledge } from "./db/vectorDb.js";
+import { initMessage, addMessage, getMessages } from "./messages.js";
 
-async function runInteractiveExperiment() {
+const client = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-  console.log("您可以任意輸入兩句話，系統會透過 OpenAI 向量模型計算出它們的語意關聯度。");
-  console.log("（在任意輸入框輸入 exit 可結束程式）\n");
+// 1. 初始化資料庫（預先載入 5 筆城市知識的向量）
+await initializeDatabase();
 
-  try {
-    while (true) {
-      // 1. 讓使用者輸入第一個句子
-      const sentence1 = (
-        await input({ message: "請輸入第一個句子：" })
-      ).trim();
-      if (sentence1.toLowerCase() === "exit" || sentence1 === "") {
-        console.log("實驗結束，謝謝使用！");
-        break;
-      }
+// 2. 初始化對話管理與 System Prompt 
+await initMessage(
+  "你是一位專業的台灣旅遊嚮導。當使用者詢問關於台灣城市的行程、特色或推薦時，系統會為你檢索出相關的「真實背景知識」。請你務必結合這些背景知識，用親切、詳細的口吻為使用者解答。如果背景知識與問題無關，請保持客觀回答。"
+);
 
-      // 2. 讓使用者輸入第二個句子
-      const sentence2 = (
-        await input({ message: " 請輸入第二個句子：" })
-      ).trim();
-      if (sentence2.toLowerCase() === "exit" || sentence2 === "") {
-        console.log("實驗結束，謝謝使用！");
-        break;
-      }
+console.log("=== 歡迎使用台灣城市 RAG 旅遊助理 ===");
+console.log("（輸入 exit 結束對話）\n");
 
-      console.log("\n⏳ 正在將兩部句子傳送至 OpenAI 進行向量化 (Embedding)...");
+try {
+  while (true) {
+    const userQuestion = (
+      await input({ message: "請輸入你想詢問的旅遊喜好或場景描述：" })
+    ).trim();
 
-      // 3. 呼叫 API 取得兩個句子的向量
-      const vector1 = await getEmbedding(sentence1);
-      const vector2 = await getEmbedding(sentence2);
-
-      // 4. 計算兩者的餘弦相似度
-      const score = cosineSimilarity(vector1, vector2);
-      const percentage = (score * 100).toFixed(2);
-
-      // 5. 輸出實驗結果
-      console.log("\n==================== 📊 實驗結果 ====================");
-      console.log(`句子 A：[ ${sentence1} ]`);
-      console.log(`句子 B：[ ${sentence2} ]`);
-      console.log(`----------------------------------------------------`);
-      console.log(`餘弦相似度分數：${score.toFixed(4)}`);
-      console.log(`語意關聯百分比：${percentage}%`);
-      
-      // 根據分數給予簡單的語意評語
-      if (score > 0.6) {
-        console.log("📢 評語：這兩句話意思高度相關，模型成功理解了它們的共通語意！");
-      } else if (score > 0.3) {
-        console.log("📢 評語：這兩句話有部分關聯或共享某些現實邏輯背景。");
-      } else {
-        console.log("📢 評語：這兩句話在向量空間中距離遙遠，屬於完全不相關的內容。");
-      }
-      console.log("====================================================\n");
+    if (userQuestion === "") continue;
+    if (userQuestion.toLowerCase() === "exit") {
+      console.log("祝您旅途愉快，再會!");
+      break;
     }
-  } catch (err) {
-    if (err.name === "ExitPromptError") {
-      console.log("\n實驗結束，謝謝使用！👋");
-    } else {
-      throw err;
-    }
+
+    console.log("正在從知識庫檢索最相關的城市背景資料...");
+
+    // 【RAG 核心步驟 1：檢索】將使用者問題轉為向量，並撈出前 1 筆最相關的城市資料
+    const queryEmbedding = await getEmbedding(userQuestion);
+    const [bestMatch] = searchKnowledge(queryEmbedding, 1);
+
+    console.log(`[知識庫撈取成功] 匹配到：【${bestMatch.title}】(相似度: ${(bestMatch.similarity * 100).toFixed(1)}%)`);
+
+    // 【RAG 核心步驟 2：增強】將撈出來的知識封裝成一個特殊的 Prompt
+    const augmentedPrompt = `
+【使用者真實問題】：${userQuestion}
+【系統檢索出的城市背景知識】：
+城市：${bestMatch.title}
+內容：${bestMatch.content}
+
+請結合上述背景知識，特別針對【${bestMatch.title}】的特色，詳細回答使用者的問題。`;
+
+    // 將包裝後的內容作為 user 角色記錄進對話歷史中
+    await addMessage(augmentedPrompt, "user");
+
+    // 【RAG 核心步驟 3：生成】將含有背景知識的完整訊息丟給 OpenAI 生成回答
+    const response = await client.chat.completions.create({
+      //model: "gpt-4o", // 或符合您課程要求的模型
+      model:"GPT-5.4 mini",
+      messages: getMessages(),
+    });
+
+    const aiReply = response.choices[0].message.content;
+    console.log(`\n嚮導回答：\n${aiReply}\n`);
+
+    // 記錄 AI 的最終回應以維持記憶
+    await addMessage(aiReply, "assistant");
+  }
+} catch (err) {
+  if (err.name === "ExitPromptError") {
+    console.log("\n祝您旅途愉快，再會!");
+  } else {
+    throw err;
   }
 }
-
-runInteractiveExperiment().catch(console.error);
