@@ -1,9 +1,13 @@
 
 import { calculatorTool } from "./calculator.js";
+import { timeTool } from "./timeTool.js";
+import { weatherTool } from "./weatherTool.js";
 
 // 註冊所有工具
 const toolsRegistry = {
   [calculatorTool.definition.function.name]: calculatorTool
+  [timeTool.definition.function.name]: timeTool,
+  [weatherTool.definition.function.name]: weatherTool
 };
 
 // 取得所有提供給 OpenAI 的工具定義陣列
