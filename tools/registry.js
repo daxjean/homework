@@ -5,7 +5,7 @@ import { weatherTool } from "./weatherTool.js";
 
 // 註冊所有工具
 const toolsRegistry = {
-  [calculatorTool.definition.function.name]: calculatorTool
+  [calculatorTool.definition.function.name]: calculatorTool,
   [timeTool.definition.function.name]: timeTool,
   [weatherTool.definition.function.name]: weatherTool
 };
