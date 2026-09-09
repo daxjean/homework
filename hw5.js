@@ -25,8 +25,16 @@ try {
       break;
     }
 
-    //  修正正則表達式：移除錯誤的逗號，改為標準的 /g
-    const matches = [...userInput.matchAll(/\[(.*?)\]/g)].map(m => m[1].trim());
+     let matches = [];
+
+    // 動態分隔符號解析邏輯：全面支援「 」、[ ]、【 】
+    if (userInput.includes("「") || userInput.includes("[") || userInput.includes("【")) {
+      const regex = /[「\[【](.*?)[」\]】]/g;
+      matches = [...userInput.matchAll(regex)].map(m => m[1].trim());
+    } else {
+      // 若無包覆符號，則用中英文逗號、頓號或兩個以上的空格切分
+      matches = userInput.split(/[,，、]|\s{2,}/).map(m => m.trim()).filter(m => m !== "");
+    }
 
     if (matches.length < 2) {
       console.log("提示：句子中至少需要包含兩個 [ ] 區塊才能進行相似度比對喔！\n");
