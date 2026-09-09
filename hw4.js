@@ -25,7 +25,7 @@ try {
 
     // 第一次呼叫：帶入雙工具定義
     let response = await client.chat.completions.create({
-      model: "gpt-4o", // 或符合您課程要求的模型名稱，如 gpt-5.6-luna
+      model: "gpt-4o", 
       messages: getMessages(),
       tools: getToolsDefinition(), 
     });
