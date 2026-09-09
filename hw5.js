@@ -1,72 +1,89 @@
 import { input } from "@inquirer/prompts";
 import OpenAI from "openai";
 import { OPENAI_API_KEY } from "./config.js";
-import { initializeDatabase } from "./initKnowledge.js";
-import { getEmbedding } from "./utils/embeddings.js";
-import { searchKnowledge } from "./db/vectorDb.js";
+import { getEmbedding, cosineSimilarity } from "./utils/embeddings.js";
 import { initMessage, addMessage, getMessages } from "./messages.js";
 
 const client = new OpenAI({ apiKey: OPENAI_API_KEY });
 
-// 1. 初始化資料庫（預先載入 5 筆城市知識的向量）
-await initializeDatabase();
+// 初始化對話紀錄與 System Prompt
+await initMessage("你是一位幽默有趣的語言分析大師。請一律用繁體中文回答，根據使用者輸入的句子以及拆分出來的字詞相似度結果，給予一段充滿智慧、好玩且熱情的語意講評。");
 
-// 2. 初始化對話管理與 System Prompt 
-await initMessage(
-  "你是一位專業的台灣旅遊嚮導。當使用者詢問關於台灣城市的行程、特色或推薦時，系統會為你檢索出相關的「真實背景知識」。請你務必結合這些背景知識，用親切、詳細的口吻為使用者解答。如果背景知識與問題無關，請保持客觀回答。"
-);
-
-console.log("=== 歡迎使用台灣城市 RAG 旅遊助理 ===");
-console.log("（輸入 exit 結束對話）\n");
+//console.log("=== [中括號區塊] 語意相似度實驗室 ===");
+//console.log("請用 [ ] 包裹你想比對的字串，例如：[我喜歡貓] [貓咪很可愛] [我養了一隻貓]");
+console.log("（輸入 exit 結束程式）\n");
 
 try {
   while (true) {
-    const userQuestion = (
-      await input({ message: "請輸入你想詢問的旅遊喜好或場景描述：" })
+    const userInput = (
+      await input({ message: "請輸入您的情境句子：" })
     ).trim();
 
-    if (userQuestion === "") continue;
-    if (userQuestion.toLowerCase() === "exit") {
-      console.log("祝您旅途愉快，再會!");
+    if (userInput === "") continue;
+    if (userInput.toLowerCase() === "exit") {
+      console.log("再會!");
       break;
     }
 
-    console.log("正在從知識庫檢索最相關的城市背景資料...");
+    //  修正正則表達式：移除錯誤的逗號，改為標準的 /g
+    const matches = [...userInput.matchAll(/\[(.*?)\]/g)].map(m => m[1].trim());
 
-    // 【RAG 核心步驟 1：檢索】將使用者問題轉為向量，並撈出前 1 筆最相關的城市資料
-    const queryEmbedding = await getEmbedding(userQuestion);
-    const [bestMatch] = searchKnowledge(queryEmbedding, 1);
+    if (matches.length < 2) {
+      console.log("提示：句子中至少需要包含兩個 [ ] 區塊才能進行相似度比對喔！\n");
+      continue;
+    }
 
-    console.log(`[知識庫撈取成功] 匹配到：【${bestMatch.title}】(相似度: ${(bestMatch.similarity * 100).toFixed(1)}%)`);
+    console.log(`\n 成功解析出 ${matches.length} 個比對區塊：${matches.map(m => `"${m}"`).join(", ")}`);
+    console.log("正在計算區塊間的語意相似度...");
 
-    // 【RAG 核心步驟 2：增強】將撈出來的知識封裝成一個特殊的 Prompt
-    const augmentedPrompt = `
-【使用者真實問題】：${userQuestion}
-【系統檢索出的城市背景知識】：
-城市：${bestMatch.title}
-內容：${bestMatch.content}
+    // 【步驟一：區塊兩兩相似度實驗】
+    const vectors = [];
+    for (const text of matches) {
+      const vec = await getEmbedding(text);
+      vectors.push({ text, vec });
+    }
 
-請結合上述背景知識，特別針對【${bestMatch.title}】的特色，詳細回答使用者的問題。`;
+    // 用來收集相似度結果，稍後一起餵給 AI 進行分析
+    let similarityReport = "";
 
-    // 將包裝後的內容作為 user 角色記錄進對話歷史中
-    await addMessage(augmentedPrompt, "user");
+    console.log("\n====================  區塊相似度結果 ====================");
+    for (let i = 0; i < vectors.length; i++) {
+      for (let j = i + 1; j < vectors.length; j++) {
+        const score = cosineSimilarity(vectors[i].vec, vectors[j].vec);
+        const resultLine = ` [${vectors[i].text}] <-> [${vectors[j].text}] ➔ 相似度：${(score * 100).toFixed(2)}%\n`;
+        console.log(resultLine.trim());
+        similarityReport += resultLine;
+      }
+    }
+    console.log("========================================================\n");
 
-    // 【RAG 核心步驟 3：生成】將含有背景知識的完整訊息丟給 OpenAI 生成回答
+    // 【步驟二：將相似度數值與原句子組裝成 Prompt】
+    const rAGPrompt = `
+【使用者輸入句子】：${userInput}
+【各區塊兩兩相似度計算結果】：
+${similarityReport}
+
+請根據上述的相似度數據，用你幽默有趣的風格，為這幾個詞彙的語意親切地開講評析！
+`;
+
+    await addMessage(rAGPrompt, "user");
+    
     const response = await client.chat.completions.create({
-      //model: "gpt-4o", // 或符合您課程要求的模型
-      model:"GPT-5.4 mini",
+      model: "gpt-5.6-luna", 
       messages: getMessages(),
     });
 
-    const aiReply = response.choices[0].message.content;
-    console.log(`\n嚮導回答：\n${aiReply}\n`);
+    // 修正回傳物件讀取邏輯
+    const aiReply = response.choices[0]?.message?.content || "（無法取得回應）";
+    console.log(`嚮導開講：\n${aiReply}\n`);
+    console.log("-----------------------------------------------------------------------\n");
 
-    // 記錄 AI 的最終回應以維持記憶
+    // 記錄 AI 回應維持記憶
     await addMessage(aiReply, "assistant");
   }
 } catch (err) {
   if (err.name === "ExitPromptError") {
-    console.log("\n祝您旅途愉快，再會!");
+    console.log("\n再會!");
   } else {
     throw err;
   }
