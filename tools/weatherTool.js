@@ -4,7 +4,7 @@ import { OPENWEATHER_API_KEY } from "../config.js";
 
 // 1. 使用實作函數串接 OpenWeather API
 async function getWeather({ city }) {
-  const url = new URL("https://openweathermap.org");
+  const url = new URL("https://api.openweathermap.org/data/2.5/weather");
   url.searchParams.set("q", city);
   url.searchParams.set("appid", OPENWEATHER_API_KEY);
   url.searchParams.set("units", "metric");
